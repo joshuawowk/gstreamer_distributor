@@ -17,7 +17,7 @@ from flask import Flask, request, jsonify
 import gi
 
 gi.require_version('Gst', '1.0')
-from gi import repository as Gst
+from gi.repository import Gst
 
 # Import YouTube handler
 from youtube_handler import YouTubeHandler

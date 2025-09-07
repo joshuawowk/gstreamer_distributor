@@ -23,7 +23,6 @@ RUN pip3 install --no-cache-dir \
     PyYAML \
     Flask \
     requests \
-    gi \
     yt-dlp \
     cachetools
 

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   gstreamer-server:
     build: ./gstreamer-server
