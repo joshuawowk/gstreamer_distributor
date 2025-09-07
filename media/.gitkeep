@@ -1,0 +1,22 @@
+# Media Directory
+
+Place your media files here. Supported formats:
+- MP4 (.mp4)
+- MKV (.mkv) 
+- AVI (.avi)
+- MOV (.mov)
+- WebM (.webm)
+- FLV (.flv)
+
+The files will be automatically detected by the web interface.
+
+## Example structure:
+```
+media/
+├── movies/
+│   ├── sample-movie.mp4
+│   └── another-movie.mkv
+├── videos/
+│   └── presentation.avi
+└── demo.mp4
+```

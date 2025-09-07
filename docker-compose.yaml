@@ -5,26 +5,37 @@ services:
     build: ./gstreamer-server
     container_name: media-distributor
     volumes:
-      - /path/to/your/jellyfin/media:/media:ro
-      - ./config:/config
+      # Mount your media directory here - update the path on the left
+      - ./media:/media:ro
+      - ./config:/config:ro
     ports:
       - "5000-5010:5000-5010/udp"
+      - "8081:8081"  # API port
     environment:
       - PYTHONUNBUFFERED=1
-    network_mode: host
+      - GST_DEBUG=2
+    networks:
+      - media-network
     restart: unless-stopped
+    depends_on:
+      - web-control
 
   web-control:
     build: ./web-control
     container_name: media-control
     ports:
       - "8080:8080"
-    depends_on:
-      - gstreamer-server
     volumes:
-      - ./media-library:/media-library:ro
+      # Mount your media directory here - update the path on the left
+      - ./media:/media-library:ro
+      - ./config:/config:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+    networks:
+      - media-network
     restart: unless-stopped
 
 networks:
-  default:
+  media-network:
     driver: bridge

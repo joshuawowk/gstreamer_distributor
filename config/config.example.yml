@@ -1,0 +1,59 @@
+# GStreamer Media Distributor Configuration
+
+# Media library settings
+media:
+  # Path to your media files (mounted in Docker)
+  library_path: "/media"
+  # Supported file formats
+  supported_formats: [".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"]
+
+# Display configuration
+displays:
+  # List of display endpoints for streaming
+  endpoints:
+    - name: "Display 1"
+      ip: "192.168.1.100"
+      port: 5000
+      enabled: true
+    - name: "Display 2" 
+      ip: "192.168.1.101"
+      port: 5001
+      enabled: true
+    - name: "Display 3"
+      ip: "192.168.1.102" 
+      port: 5002
+      enabled: false
+
+# Streaming settings
+streaming:
+  # Video encoding settings
+  video:
+    codec: "x264enc"
+    bitrate: 2000  # kbps
+    resolution: "1920x1080"
+    framerate: 30
+    
+  # Audio encoding settings  
+  audio:
+    codec: "lamemp3enc"
+    bitrate: 128  # kbps
+    samplerate: 44100
+    
+  # Network settings
+  network:
+    protocol: "udp"  # udp, tcp, rtmp
+    buffer_size: 65536
+    latency: 40  # ms
+
+# Web interface settings
+web:
+  host: "0.0.0.0"
+  port: 8080
+  debug: false
+  
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "/var/log/gstreamer-distributor.log"
+  max_size: "10MB"
+  backup_count: 5
