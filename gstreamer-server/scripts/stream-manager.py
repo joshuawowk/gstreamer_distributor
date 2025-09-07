@@ -12,12 +12,15 @@ import subprocess
 import threading
 import signal
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from flask import Flask, request, jsonify
 import gi
 
 gi.require_version('Gst', '1.0')
 from gi import repository as Gst
+
+# Import YouTube handler
+from youtube_handler import YouTubeHandler
 
 class StreamManager:
     def __init__(self, config_path: str = '/config/config.yml'):
@@ -25,6 +28,14 @@ class StreamManager:
         self._setup_logging()
         self.active_streams = {}
         self.running = True
+        
+        # Initialize YouTube handler if enabled
+        if self.config.get('youtube', {}).get('enabled', True):
+            self.youtube_handler = YouTubeHandler(self.config)
+            self.logger.info("YouTube integration enabled")
+        else:
+            self.youtube_handler = None
+            self.logger.info("YouTube integration disabled")
         
         # Initialize GStreamer
         Gst.init(None)
@@ -56,6 +67,14 @@ class StreamManager:
             'media': {
                 'library_path': '/media',
                 'supported_formats': ['.mp4', '.mkv', '.avi', '.mov']
+            },
+            'youtube': {
+                'enabled': True,
+                'default_quality': '720p',
+                'fallback_qualities': ['720p', '480p', '360p'],
+                'max_duration': 7200,
+                'cache_enabled': True,
+                'timeout': 30
             },
             'displays': {
                 'endpoints': [
@@ -98,16 +117,16 @@ class StreamManager:
             try:
                 data = request.json
                 stream_id = data.get('stream_id')
-                media_file = data.get('media_file')
+                media_source = data.get('media_file') or data.get('media_source')  # Support both names
                 displays = data.get('displays', [])
                 
-                if not stream_id or not media_file or not displays:
+                if not stream_id or not media_source or not displays:
                     return jsonify({
                         'success': False,
                         'message': 'Missing required parameters'
                     }), 400
                 
-                success = self.start_stream(stream_id, media_file, displays)
+                success = self.start_stream(stream_id, media_source, displays)
                 
                 if success:
                     return jsonify({
@@ -158,6 +177,159 @@ class StreamManager:
             else:
                 return jsonify({'success': False, 'message': 'Stream not found'}), 404
         
+        # YouTube-specific endpoints
+        @self.app.route('/api/youtube/validate', methods=['POST'])
+        def validate_youtube_url():
+            try:
+                if not self.youtube_handler:
+                    return jsonify({
+                        'success': False,
+                        'message': 'YouTube integration disabled'
+                    }), 503
+                
+                data = request.json
+                url = data.get('url')
+                
+                if not url:
+                    return jsonify({
+                        'success': False,
+                        'message': 'URL is required'
+                    }), 400
+                
+                result = self.youtube_handler.validate_url(url)
+                return jsonify({
+                    'success': result.get('valid', False),
+                    'message': result.get('error') or result.get('warning', 'Valid'),
+                    'info': result.get('info')
+                })
+                
+            except Exception as e:
+                self.logger.error(f"YouTube validation error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/youtube/info', methods=['POST'])
+        def get_youtube_info():
+            try:
+                if not self.youtube_handler:
+                    return jsonify({
+                        'success': False,
+                        'message': 'YouTube integration disabled'
+                    }), 503
+                
+                data = request.json
+                url = data.get('url')
+                
+                if not url:
+                    return jsonify({
+                        'success': False,
+                        'message': 'URL is required'
+                    }), 400
+                
+                info = self.youtube_handler.get_video_info(url)
+                if info:
+                    return jsonify({
+                        'success': True,
+                        'info': info
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Could not extract video information'
+                    }), 400
+                    
+            except Exception as e:
+                self.logger.error(f"YouTube info error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/youtube/search', methods=['POST'])
+        def search_youtube():
+            try:
+                if not self.youtube_handler:
+                    return jsonify({
+                        'success': False,
+                        'message': 'YouTube integration disabled'
+                    }), 503
+                
+                data = request.json
+                query = data.get('query')
+                max_results = data.get('max_results', 10)
+                
+                if not query:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Search query is required'
+                    }), 400
+                
+                results = self.youtube_handler.search_videos(query, max_results)
+                return jsonify({
+                    'success': True,
+                    'results': results
+                })
+                
+            except Exception as e:
+                self.logger.error(f"YouTube search error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/youtube/cache/clear', methods=['POST'])
+        def clear_youtube_cache():
+            try:
+                if not self.youtube_handler:
+                    return jsonify({
+                        'success': False,
+                        'message': 'YouTube integration disabled'
+                    }), 503
+                
+                self.youtube_handler.clear_cache()
+                return jsonify({
+                    'success': True,
+                    'message': 'Cache cleared successfully'
+                })
+                
+            except Exception as e:
+                self.logger.error(f"Cache clear error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/youtube/status')
+        def get_youtube_status():
+            try:
+                if not self.youtube_handler:
+                    return jsonify({
+                        'enabled': False,
+                        'message': 'YouTube integration disabled'
+                    })
+                
+                cache_stats = self.youtube_handler.get_cache_stats()
+                config = self.config.get('youtube', {})
+                
+                return jsonify({
+                    'enabled': True,
+                    'config': {
+                        'default_quality': config.get('default_quality'),
+                        'max_duration': config.get('max_duration'),
+                        'timeout': config.get('timeout')
+                    },
+                    'cache': cache_stats
+                })
+                
+            except Exception as e:
+                self.logger.error(f"YouTube status error: {e}")
+                return jsonify({
+                    'enabled': False,
+                    'error': str(e)
+                })
+        
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""
         self.logger.info(f"Received signal {signum}, shutting down...")
@@ -171,11 +343,22 @@ class StreamManager:
             if display.get('enabled', True)
         ]
     
-    def build_gstreamer_pipeline(self, media_file: str, displays: List[dict]) -> str:
+    def build_gstreamer_pipeline(self, media_source: str, displays: List[dict]) -> str:
         """Build GStreamer pipeline for multiple displays"""
         if not displays:
             raise ValueError("No displays provided")
-            
+        
+        # Determine if source is YouTube URL or local file
+        is_youtube = (self.youtube_handler and 
+                     self.youtube_handler.is_youtube_url(media_source))
+        
+        if is_youtube:
+            return self._build_youtube_pipeline(media_source, displays)
+        else:
+            return self._build_local_file_pipeline(media_source, displays)
+    
+    def _build_local_file_pipeline(self, media_file: str, displays: List[dict]) -> str:
+        """Build GStreamer pipeline for local media files"""
         # Get media file path
         media_path = os.path.join(self.config['media']['library_path'], media_file)
         if not os.path.exists(media_path):
@@ -190,6 +373,43 @@ class StreamManager:
             f'filesrc location="{media_path}"',
             '! decodebin name=dec'
         ]
+        
+        return self._build_common_pipeline(pipeline_parts, displays, video_settings, audio_settings)
+    
+    def _build_youtube_pipeline(self, youtube_url: str, displays: List[dict]) -> str:
+        """Build GStreamer pipeline for YouTube videos"""
+        if not self.youtube_handler:
+            raise ValueError("YouTube integration not enabled")
+        
+        # Get stream URLs
+        stream_urls = self.youtube_handler.get_stream_urls(youtube_url)
+        if not stream_urls:
+            raise ValueError("Could not extract YouTube stream URLs")
+        
+        video_url, audio_url = stream_urls
+        
+        # Video settings
+        video_settings = self.config['streaming']['video']
+        audio_settings = self.config['streaming']['audio']
+        
+        if audio_url and self.config.get('youtube', {}).get('extract_audio', True):
+            # Separate video and audio streams
+            pipeline_parts = [
+                f'souphttpsrc location="{video_url}" ! decodebin name=videodec',
+                f'souphttpsrc location="{audio_url}" ! decodebin name=audiodec'
+            ]
+        else:
+            # Single stream with video and audio
+            pipeline_parts = [
+                f'souphttpsrc location="{video_url}"',
+                '! decodebin name=dec'
+            ]
+        
+        return self._build_common_pipeline(pipeline_parts, displays, video_settings, audio_settings)
+    
+    def _build_common_pipeline(self, source_parts: List[str], displays: List[dict], 
+                              video_settings: dict, audio_settings: dict) -> str:
+        """Build common pipeline parts for video/audio distribution"""
         
         # Video branch with tee for multiple outputs
         video_branch = [
@@ -240,7 +460,7 @@ class StreamManager:
         
         # Combine all pipeline parts
         full_pipeline = (
-            ' '.join(pipeline_parts) + ' ' +
+            ' '.join(source_parts) + ' ' +
             ' '.join(video_branch) + ' ' +
             ' '.join(audio_branch) + ' ' +
             ' '.join(video_outputs) + ' ' +
@@ -249,15 +469,15 @@ class StreamManager:
         
         return full_pipeline
     
-    def start_stream(self, stream_id: str, media_file: str, displays: List[dict]) -> bool:
+    def start_stream(self, stream_id: str, media_source: str, displays: List[dict]) -> bool:
         """Start a new stream"""
         try:
             if stream_id in self.active_streams:
                 self.logger.warning(f"Stream {stream_id} already exists")
                 return False
                 
-            pipeline_str = self.build_gstreamer_pipeline(media_file, displays)
-            self.logger.info(f"Starting stream {stream_id}: {media_file}")
+            pipeline_str = self.build_gstreamer_pipeline(media_source, displays)
+            self.logger.info(f"Starting stream {stream_id}: {media_source}")
             self.logger.debug(f"Pipeline: {pipeline_str}")
             
             # Start GStreamer process
@@ -268,9 +488,14 @@ class StreamManager:
                 universal_newlines=True
             )
             
+            # Determine source type for metadata
+            is_youtube = (self.youtube_handler and 
+                         self.youtube_handler.is_youtube_url(media_source))
+            
             self.active_streams[stream_id] = {
                 'process': process,
-                'media_file': media_file,
+                'media_source': media_source,
+                'source_type': 'youtube' if is_youtube else 'local',
                 'displays': displays,
                 'start_time': time.time()
             }
@@ -368,7 +593,8 @@ class StreamManager:
         
         return {
             'stream_id': stream_id,
-            'media_file': stream_info['media_file'],
+            'media_source': stream_info['media_source'],
+            'source_type': stream_info['source_type'],
             'displays': len(stream_info['displays']),
             'running': process.poll() is None,
             'uptime': time.time() - stream_info['start_time'],

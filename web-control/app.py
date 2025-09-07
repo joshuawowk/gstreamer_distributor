@@ -10,6 +10,7 @@ import requests
 import yaml
 import logging
 import uuid
+import re
 from typing import List, Dict, Optional
 
 app = Flask(__name__)
@@ -42,6 +43,11 @@ class WebController:
                 'library_path': '/media-library',
                 'supported_formats': ['.mp4', '.mkv', '.avi', '.mov', '.webm']
             },
+            'youtube': {
+                'enabled': True,
+                'default_quality': '720p',
+                'max_duration': 7200
+            },
             'displays': {
                 'endpoints': [
                     {'name': 'Display 1', 'ip': '192.168.1.100', 'port': 5000, 'enabled': True}
@@ -69,7 +75,10 @@ controller = WebController()
 def index():
     """Main dashboard page"""
     media_files = get_media_files()
-    return render_template('index.html', media_files=media_files)
+    youtube_enabled = controller.config.get('youtube', {}).get('enabled', True)
+    return render_template('index.html', 
+                         media_files=media_files, 
+                         youtube_enabled=youtube_enabled)
 
 @app.route('/api/displays')
 def get_displays():
@@ -136,13 +145,14 @@ def start_stream():
     """Start a new media stream"""
     try:
         data = request.json
-        media_file = data.get('file')
+        media_source = data.get('file') or data.get('url')  # Support both file and URL
         displays = data.get('displays', [])
+        source_type = data.get('type', 'local')  # 'local' or 'youtube'
         
-        if not media_file:
+        if not media_source:
             return jsonify({
                 'success': False,
-                'message': 'Media file is required'
+                'message': 'Media source is required'
             }), 400
         
         if not displays:
@@ -158,7 +168,7 @@ def start_stream():
         try:
             stream_data = {
                 'stream_id': stream_id,
-                'media_file': media_file,
+                'media_source': media_source,
                 'displays': displays
             }
             
@@ -173,7 +183,8 @@ def start_stream():
                 return jsonify({
                     'success': result.get('success', False),
                     'message': result.get('message', 'Stream started'),
-                    'stream_id': stream_id
+                    'stream_id': stream_id,
+                    'source_type': source_type
                 })
             else:
                 return jsonify({
@@ -271,6 +282,169 @@ def get_system_status():
             'success': False,
             'message': str(e)
         }), 500
+
+# YouTube-specific endpoints
+@app.route('/api/youtube/validate', methods=['POST'])
+def validate_youtube_url():
+    """Validate YouTube URL"""
+    try:
+        data = request.json
+        url = data.get('url')
+        
+        if not url:
+            return jsonify({
+                'success': False,
+                'message': 'URL is required'
+            }), 400
+        
+        # Forward to stream manager
+        response = requests.post(
+            f'{STREAM_MANAGER_URL}/api/youtube/validate',
+            json={'url': url},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'YouTube validation failed'
+            }), response.status_code
+        
+    except requests.RequestException as e:
+        logging.error(f"Error validating YouTube URL: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Stream manager unavailable'
+        }), 503
+    except Exception as e:
+        logging.error(f"Error validating YouTube URL: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/youtube/info', methods=['POST'])
+def get_youtube_info():
+    """Get YouTube video information"""
+    try:
+        data = request.json
+        url = data.get('url')
+        
+        if not url:
+            return jsonify({
+                'success': False,
+                'message': 'URL is required'
+            }), 400
+        
+        # Forward to stream manager
+        response = requests.post(
+            f'{STREAM_MANAGER_URL}/api/youtube/info',
+            json={'url': url},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to get YouTube info'
+            }), response.status_code
+        
+    except requests.RequestException as e:
+        logging.error(f"Error getting YouTube info: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Stream manager unavailable'
+        }), 503
+    except Exception as e:
+        logging.error(f"Error getting YouTube info: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/youtube/search', methods=['POST'])
+def search_youtube():
+    """Search YouTube videos"""
+    try:
+        data = request.json
+        query = data.get('query')
+        max_results = data.get('max_results', 10)
+        
+        if not query:
+            return jsonify({
+                'success': False,
+                'message': 'Search query is required'
+            }), 400
+        
+        # Forward to stream manager
+        response = requests.post(
+            f'{STREAM_MANAGER_URL}/api/youtube/search',
+            json={'query': query, 'max_results': max_results},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'YouTube search failed'
+            }), response.status_code
+        
+    except requests.RequestException as e:
+        logging.error(f"Error searching YouTube: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Stream manager unavailable'
+        }), 503
+    except Exception as e:
+        logging.error(f"Error searching YouTube: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/youtube/status')
+def get_youtube_status():
+    """Get YouTube integration status"""
+    try:
+        # Check local config first
+        youtube_config = controller.config.get('youtube', {})
+        if not youtube_config.get('enabled', True):
+            return jsonify({
+                'enabled': False,
+                'message': 'YouTube integration disabled in config'
+            })
+        
+        # Forward to stream manager for detailed status
+        response = requests.get(
+            f'{STREAM_MANAGER_URL}/api/youtube/status',
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return jsonify({
+                'enabled': False,
+                'message': 'Stream manager unavailable'
+            })
+        
+    except requests.RequestException:
+        return jsonify({
+            'enabled': False,
+            'message': 'Stream manager unavailable'
+        })
+    except Exception as e:
+        logging.error(f"Error getting YouTube status: {e}")
+        return jsonify({
+            'enabled': False,
+            'error': str(e)
+        })
 
 def get_media_files() -> List[str]:
     """Scan media directory and return available files"""

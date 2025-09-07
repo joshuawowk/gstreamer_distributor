@@ -6,11 +6,13 @@ A powerful solution for streaming media content to multiple displays simultaneou
 
 - 🎬 **Multi-Display Streaming**: Stream to unlimited displays simultaneously
 - 🌐 **Web-Based Control**: Intuitive web interface for managing streams
-- 🔧 **Flexible Configuration**: YAML-based configuration system
+- � **YouTube Integration**: Stream YouTube videos directly to displays
+- �🔧 **Flexible Configuration**: YAML-based configuration system
 - 📊 **Real-Time Monitoring**: Live stream status and system health monitoring
 - 🐳 **Docker Ready**: Complete containerized solution
 - 🎵 **Audio + Video**: Full support for audio and video streaming
 - 🚀 **High Performance**: Optimized GStreamer pipelines for low latency
+- 🔍 **YouTube Search**: Built-in YouTube video search functionality
 
 ## Quick Start
 
@@ -87,6 +89,15 @@ media:
   library_path: "/media"
   supported_formats: [".mp4", ".mkv", ".avi", ".mov", ".webm"]
 
+# YouTube integration settings
+youtube:
+  enabled: true
+  default_quality: "720p"
+  fallback_qualities: ["720p", "480p", "360p"]
+  max_duration: 7200  # 2 hours
+  cache_enabled: true
+  timeout: 30
+
 # Display configuration
 displays:
   endpoints:
@@ -123,7 +134,7 @@ logging:
 
 The stream manager provides a REST API for programmatic control:
 
-### Endpoints
+### Core Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -133,27 +144,139 @@ The stream manager provides a REST API for programmatic control:
 | POST | `/api/stream/stop/<id>` | Stop a specific stream |
 | GET | `/api/stream/<id>` | Get stream status |
 
+### YouTube Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/youtube/validate` | Validate YouTube URL |
+| POST | `/api/youtube/info` | Get video information |
+| POST | `/api/youtube/search` | Search YouTube videos |
+| GET | `/api/youtube/status` | YouTube integration status |
+| POST | `/api/youtube/cache/clear` | Clear video cache |
+
 ### Example API Usage
 
-**Start a stream:**
+**Start a local media stream:**
 ```bash
 curl -X POST http://localhost:8081/api/stream/start \
   -H "Content-Type: application/json" \
   -d '{
-    "stream_id": "my-stream-1",
-    "media_file": "movies/sample.mp4",
+    "stream_id": "local-stream-1",
+    "media_source": "movies/sample.mp4",
     "displays": [
       {"name": "Display 1", "ip": "192.168.1.100", "port": 5000}
     ]
   }'
 ```
 
-**List active streams:**
+**Start a YouTube stream:**
 ```bash
-curl http://localhost:8081/api/streams
+curl -X POST http://localhost:8081/api/stream/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stream_id": "youtube-stream-1", 
+    "media_source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "displays": [
+      {"name": "Display 1", "ip": "192.168.1.100", "port": 5000}
+    ]
+  }'
 ```
 
-## Receiving Streams
+**Validate YouTube URL:**
+```bash
+curl -X POST http://localhost:8081/api/youtube/validate \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}'
+```
+
+**Search YouTube videos:**
+```bash
+curl -X POST http://localhost:8081/api/youtube/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "nature documentary", "max_results": 5}'
+```
+
+## Usage
+
+### Streaming Local Media
+
+1. Place media files in the `./media` directory
+2. Access the web interface at `http://localhost:8080`
+3. Select the "Local Media" tab
+4. Choose your media file from the dropdown
+5. Select target displays
+6. Click "Start Stream"
+
+### Streaming YouTube Videos
+
+1. Access the web interface at `http://localhost:8080`
+2. Select the "YouTube" tab
+3. **Option 1: Direct URL**
+   - Paste a YouTube URL
+   - Click the validate button (✓)
+   - Review video information
+   - Select displays and start stream
+4. **Option 2: Search**
+   - Click "Search YouTube"
+   - Enter search terms
+   - Select a video from results
+   - Video will be automatically validated
+   - Select displays and start stream
+
+### Supported YouTube URLs
+
+- Standard: `https://www.youtube.com/watch?v=VIDEO_ID`
+- Short: `https://youtu.be/VIDEO_ID`
+- Embed: `https://www.youtube.com/embed/VIDEO_ID`
+- Mobile: `https://m.youtube.com/watch?v=VIDEO_ID`
+
+### Quality Settings
+
+YouTube videos are automatically streamed in the configured quality:
+- **best**: Highest available quality
+- **1080p, 720p, 480p, 360p**: Specific resolutions
+- **worst**: Lowest quality (for bandwidth conservation)
+
+The system automatically falls back to lower qualities if the preferred quality is unavailable.
+
+## Troubleshooting
+
+### YouTube Integration Issues
+
+1. **YouTube Video Not Loading**
+   - Verify the URL is valid and public
+   - Check if video is available in your region
+   - Some videos may have restrictions that prevent streaming
+   - Age-restricted content may not be accessible
+
+2. **Quality Issues**
+   - YouTube videos respect the `default_quality` setting in config.yml
+   - If preferred quality isn't available, system falls back automatically
+   - Check available qualities using the validation endpoint
+   - Live streams may have limited quality options
+
+3. **Search Not Working**
+   - Verify internet connectivity
+   - yt-dlp may need updates for YouTube compatibility
+   - Check Docker logs for YouTube API errors
+
+4. **Stream Performance Issues**
+   - YouTube streams require internet bandwidth
+   - Consider lowering `default_quality` for better performance
+   - Check `max_duration` setting for long videos
+
+### General Issues
+
+1. **Stream Not Starting**
+   - Ensure GStreamer service is running
+   - Check Docker logs: `docker compose logs gstreamer-server`
+   - Verify network connectivity for YouTube streams
+   - Confirm media files exist for local content
+
+2. **Web Interface Not Loading**
+   - Confirm services are running: `docker compose ps`
+   - Check that ports 8080 and 8081 are available
+   - Review web service logs: `docker compose logs web-control`
 
 ### Using GStreamer on Target Displays
 

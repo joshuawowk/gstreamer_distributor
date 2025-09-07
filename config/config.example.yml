@@ -7,6 +7,25 @@ media:
   # Supported file formats
   supported_formats: [".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"]
 
+# YouTube integration settings
+youtube:
+  # Enable YouTube video streaming
+  enabled: true
+  # Default video quality (best, worst, 1080p, 720p, 480p, 360p)
+  default_quality: "720p"
+  # Fallback qualities if preferred not available
+  fallback_qualities: ["720p", "480p", "360p", "worst"]
+  # Maximum video duration in seconds (0 = no limit)
+  max_duration: 7200  # 2 hours
+  # Cache YouTube metadata for faster access
+  cache_enabled: true
+  # Cache duration in seconds
+  cache_duration: 3600  # 1 hour
+  # Timeout for YouTube operations in seconds
+  timeout: 30
+  # Extract audio separately for better quality
+  extract_audio: true
+
 # Display configuration
 displays:
   # List of display endpoints for streaming

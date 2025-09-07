@@ -23,7 +23,9 @@ RUN pip3 install --no-cache-dir \
     PyYAML \
     Flask \
     requests \
-    gi
+    gi \
+    yt-dlp \
+    cachetools
 
 WORKDIR /app
 COPY scripts/ ./scripts/

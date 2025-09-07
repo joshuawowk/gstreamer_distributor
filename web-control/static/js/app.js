@@ -8,6 +8,9 @@ class MediaDistributor {
         this.displays = [];
         this.activeStreams = [];
         this.selectedDisplays = new Set();
+        this.youtubeInfo = null;
+        this.currentSource = null;
+        this.sourceType = 'local'; // 'local' or 'youtube'
         
         this.init();
         this.bindEvents();
@@ -18,13 +21,68 @@ class MediaDistributor {
         console.log('Initializing Media Distributor interface...');
         this.loadDisplays();
         this.loadActiveStreams();
+        this.checkYouTubeStatus();
     }
     
     bindEvents() {
         // Media selection change
         document.getElementById('mediaSelect').addEventListener('change', () => {
+            this.sourceType = 'local';
+            this.currentSource = document.getElementById('mediaSelect').value;
             this.updateStartButton();
         });
+        
+        // Tab changes
+        const tabs = document.querySelectorAll('#sourceTab button');
+        tabs.forEach(tab => {
+            tab.addEventListener('shown.bs.tab', (e) => {
+                const target = e.target.getAttribute('data-bs-target');
+                if (target === '#local') {
+                    this.sourceType = 'local';
+                    this.currentSource = document.getElementById('mediaSelect').value;
+                } else if (target === '#youtube') {
+                    this.sourceType = 'youtube';
+                    this.currentSource = document.getElementById('youtubeUrl').value;
+                }
+                this.updateStartButton();
+            });
+        });
+        
+        // YouTube URL input
+        const youtubeUrl = document.getElementById('youtubeUrl');
+        if (youtubeUrl) {
+            youtubeUrl.addEventListener('input', () => {
+                this.currentSource = youtubeUrl.value;
+                this.youtubeInfo = null;
+                document.getElementById('youtubeInfo').classList.add('d-none');
+                this.updateStartButton();
+            });
+        }
+        
+        // YouTube validate button
+        const validateBtn = document.getElementById('validateBtn');
+        if (validateBtn) {
+            validateBtn.addEventListener('click', () => {
+                this.validateYouTubeUrl();
+            });
+        }
+        
+        // YouTube search
+        const searchBtn = document.getElementById('doSearchBtn');
+        if (searchBtn) {
+            searchBtn.addEventListener('click', () => {
+                this.searchYouTube();
+            });
+        }
+        
+        const searchQuery = document.getElementById('searchQuery');
+        if (searchQuery) {
+            searchQuery.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.searchYouTube();
+                }
+            });
+        }
         
         // Start stream button
         document.getElementById('startStreamBtn').addEventListener('click', () => {
@@ -146,17 +204,24 @@ class MediaDistributor {
             const statusClass = stream.running ? 'status-running' : 'status-stopped';
             const uptime = this.formatUptime(stream.uptime);
             
+            // Determine source icon and label
+            const sourceInfo = stream.source_type === 'youtube' ? 
+                { icon: 'fab fa-youtube', label: 'YouTube', color: 'text-danger' } :
+                { icon: 'fas fa-file-video', label: 'Local', color: 'text-primary' };
+            
             streamCard.innerHTML = `
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <h6 class="card-title">
                                 <span class="status-indicator ${statusClass}"></span>
-                                ${stream.media_file}
+                                <i class="${sourceInfo.icon} ${sourceInfo.color} me-1"></i>
+                                ${stream.media_source}
                             </h6>
                             <p class="card-text text-muted mb-2">
-                                <i class="fas fa-tv me-2"></i>${stream.displays} displays
-                                <i class="fas fa-clock ms-3 me-2"></i>${uptime}
+                                <span class="badge bg-secondary me-2">${sourceInfo.label}</span>
+                                <i class="fas fa-tv me-1"></i>${stream.displays} displays
+                                <i class="fas fa-clock ms-3 me-1"></i>${uptime}
                             </p>
                             <small class="text-muted">Stream ID: ${stream.stream_id}</small>
                         </div>
@@ -174,12 +239,39 @@ class MediaDistributor {
     }
     
     async startStream() {
-        const mediaSelect = document.getElementById('mediaSelect');
-        const selectedMedia = mediaSelect.value;
+        let mediaSource, sourceData;
         
-        if (!selectedMedia) {
-            this.showToast('Please select a media file', 'warning');
-            return;
+        if (this.sourceType === 'local') {
+            const mediaSelect = document.getElementById('mediaSelect');
+            mediaSource = mediaSelect.value;
+            
+            if (!mediaSource) {
+                this.showToast('Please select a media file', 'warning');
+                return;
+            }
+            
+            sourceData = {
+                file: mediaSource,
+                type: 'local'
+            };
+        } else if (this.sourceType === 'youtube') {
+            const youtubeUrl = document.getElementById('youtubeUrl');
+            mediaSource = youtubeUrl.value;
+            
+            if (!mediaSource) {
+                this.showToast('Please enter a YouTube URL', 'warning');
+                return;
+            }
+            
+            if (!this.youtubeInfo) {
+                this.showToast('Please validate the YouTube URL first', 'warning');
+                return;
+            }
+            
+            sourceData = {
+                url: mediaSource,
+                type: 'youtube'
+            };
         }
         
         if (this.selectedDisplays.size === 0) {
@@ -189,7 +281,7 @@ class MediaDistributor {
         
         const displays = Array.from(this.selectedDisplays);
         const streamData = {
-            file: selectedMedia,
+            ...sourceData,
             displays: displays
         };
         
@@ -206,8 +298,18 @@ class MediaDistributor {
             const data = await response.json();
             
             if (data.success) {
-                this.showToast(`Stream started: ${selectedMedia}`, 'success');
-                mediaSelect.value = '';
+                this.showToast(`Stream started: ${this.sourceType === 'youtube' ? this.youtubeInfo?.title || 'YouTube video' : mediaSource}`, 'success');
+                
+                // Reset form
+                if (this.sourceType === 'local') {
+                    document.getElementById('mediaSelect').value = '';
+                } else {
+                    document.getElementById('youtubeUrl').value = '';
+                    document.getElementById('youtubeInfo').classList.add('d-none');
+                    this.youtubeInfo = null;
+                }
+                
+                this.currentSource = null;
                 this.updateStartButton();
                 
                 // Refresh streams after a short delay
@@ -250,13 +352,20 @@ class MediaDistributor {
     }
     
     updateStartButton() {
-        const mediaSelect = document.getElementById('mediaSelect');
         const startBtn = document.getElementById('startStreamBtn');
         
-        const hasMedia = mediaSelect.value !== '';
+        let hasSource = false;
+        if (this.sourceType === 'local') {
+            const mediaSelect = document.getElementById('mediaSelect');
+            hasSource = mediaSelect.value !== '';
+        } else if (this.sourceType === 'youtube') {
+            const youtubeUrl = document.getElementById('youtubeUrl');
+            hasSource = youtubeUrl.value !== '' && this.youtubeInfo !== null;
+        }
+        
         const hasDisplays = this.selectedDisplays.size > 0;
         
-        startBtn.disabled = !hasMedia || !hasDisplays;
+        startBtn.disabled = !hasSource || !hasDisplays;
     }
     
     updateStreamCount() {
@@ -337,6 +446,207 @@ class MediaDistributor {
         } catch (error) {
             console.error('Error updating system status:', error);
         }
+    }
+    
+    // YouTube-specific methods
+    async checkYouTubeStatus() {
+        try {
+            const response = await fetch('/api/youtube/status');
+            const data = await response.json();
+            
+            if (!data.enabled) {
+                // Hide YouTube tab if not enabled
+                const youtubeTab = document.getElementById('youtube-tab');
+                if (youtubeTab) {
+                    youtubeTab.style.display = 'none';
+                }
+            }
+        } catch (error) {
+            console.error('Error checking YouTube status:', error);
+        }
+    }
+    
+    async validateYouTubeUrl() {
+        const youtubeUrl = document.getElementById('youtubeUrl');
+        const validateBtn = document.getElementById('validateBtn');
+        const url = youtubeUrl.value.trim();
+        
+        if (!url) {
+            this.showToast('Please enter a YouTube URL', 'warning');
+            return;
+        }
+        
+        try {
+            // Show loading state
+            validateBtn.disabled = true;
+            validateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            const response = await fetch('/api/youtube/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.youtubeInfo = data.info;
+                this.displayYouTubeInfo(data.info);
+                this.showToast('YouTube URL validated successfully', 'success');
+                this.updateStartButton();
+            } else {
+                this.youtubeInfo = null;
+                document.getElementById('youtubeInfo').classList.add('d-none');
+                this.showToast(data.message || 'Invalid YouTube URL', 'error');
+                this.updateStartButton();
+            }
+        } catch (error) {
+            console.error('Error validating YouTube URL:', error);
+            this.showToast('Error validating YouTube URL', 'error');
+        } finally {
+            validateBtn.disabled = false;
+            validateBtn.innerHTML = '<i class="fas fa-check"></i>';
+        }
+    }
+    
+    displayYouTubeInfo(info) {
+        const infoDiv = document.getElementById('youtubeInfo');
+        const thumbnail = document.getElementById('youtubeThumbnail');
+        const title = document.getElementById('youtubeTitle');
+        const uploader = document.getElementById('youtubeUploader');
+        const duration = document.getElementById('youtubeDuration');
+        
+        thumbnail.src = info.thumbnail || '';
+        title.textContent = info.title || 'Unknown Title';
+        uploader.textContent = `By: ${info.uploader || 'Unknown'}`;
+        
+        if (info.duration) {
+            const minutes = Math.floor(info.duration / 60);
+            const seconds = info.duration % 60;
+            duration.textContent = `Duration: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+            duration.textContent = 'Duration: Unknown';
+        }
+        
+        infoDiv.classList.remove('d-none');
+    }
+    
+    async searchYouTube() {
+        const searchQuery = document.getElementById('searchQuery');
+        const searchBtn = document.getElementById('doSearchBtn');
+        const resultsDiv = document.getElementById('searchResults');
+        const query = searchQuery.value.trim();
+        
+        if (!query) {
+            this.showToast('Please enter a search term', 'warning');
+            return;
+        }
+        
+        try {
+            // Show loading state
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
+            
+            resultsDiv.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                    <p>Searching YouTube...</p>
+                </div>
+            `;
+            
+            const response = await fetch('/api/youtube/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query, max_results: 8 })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.results.length > 0) {
+                this.displaySearchResults(data.results);
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <p>No results found</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error searching YouTube:', error);
+            resultsDiv.innerHTML = `
+                <div class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <p>Search failed</p>
+                </div>
+            `;
+        } finally {
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = '<i class="fas fa-search"></i> Search';
+        }
+    }
+    
+    displaySearchResults(results) {
+        const resultsDiv = document.getElementById('searchResults');
+        
+        let html = '<div class="row">';
+        results.forEach(video => {
+            const duration = video.duration ? 
+                `${Math.floor(video.duration / 60)}:${(video.duration % 60).toString().padStart(2, '0')}` : 
+                'N/A';
+            
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100 search-result-card" data-url="${video.url}">
+                        <div class="card-body p-3">
+                            <h6 class="card-title mb-2" style="font-size: 0.9em; line-height: 1.2;">${video.title}</h6>
+                            <small class="text-muted">
+                                <div>By: ${video.uploader || 'Unknown'}</div>
+                                <div>Duration: ${duration}</div>
+                                ${video.view_count ? `<div>Views: ${video.view_count.toLocaleString()}</div>` : ''}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        resultsDiv.innerHTML = html;
+        
+        // Add click handlers
+        document.querySelectorAll('.search-result-card').forEach(card => {
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => {
+                const url = card.dataset.url;
+                document.getElementById('youtubeUrl').value = url;
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('searchModal'));
+                modal.hide();
+                
+                // Switch to YouTube tab
+                const youtubeTab = document.getElementById('youtube-tab');
+                youtubeTab.click();
+                
+                // Validate the selected URL
+                setTimeout(() => {
+                    this.validateYouTubeUrl();
+                }, 500);
+            });
+            
+            card.addEventListener('mouseenter', () => {
+                card.style.backgroundColor = '#f8f9fa';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.backgroundColor = '';
+            });
+        });
     }
 }
 
