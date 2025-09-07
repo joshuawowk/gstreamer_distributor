@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  gstreamer-server:
+    build: ./gstreamer-server
+    container_name: media-distributor
+    volumes:
+      - /path/to/your/jellyfin/media:/media:ro
+      - ./config:/config
+    ports:
+      - "5000-5010:5000-5010/udp"
+    environment:
+      - PYTHONUNBUFFERED=1
+    network_mode: host
+    restart: unless-stopped
+
+  web-control:
+    build: ./web-control
+    container_name: media-control
+    ports:
+      - "8080:8080"
+    depends_on:
+      - gstreamer-server
+    volumes:
+      - ./media-library:/media-library:ro
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
