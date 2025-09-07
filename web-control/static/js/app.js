@@ -97,6 +97,48 @@ class MediaDistributor {
         document.getElementById('refreshStreamsBtn').addEventListener('click', () => {
             this.loadActiveStreams();
         });
+        
+        // Configuration Tab Events
+        const configTab = document.getElementById('configuration-tab');
+        if (configTab) {
+            configTab.addEventListener('shown.bs.tab', () => {
+                this.loadConfigDisplays();
+                this.loadSettings();
+            });
+        }
+        
+        // Add display button
+        const addDisplayBtn = document.getElementById('addDisplayBtn');
+        if (addDisplayBtn) {
+            addDisplayBtn.addEventListener('click', () => {
+                this.addDisplay();
+            });
+        }
+        
+        // Edit display form submission
+        const saveEditDisplayBtn = document.getElementById('saveEditDisplayBtn');
+        if (saveEditDisplayBtn) {
+            saveEditDisplayBtn.addEventListener('click', () => {
+                this.saveEditDisplay();
+            });
+        }
+        
+        // Settings forms
+        const streamingSettingsForm = document.getElementById('streamingSettingsForm');
+        if (streamingSettingsForm) {
+            streamingSettingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveStreamingSettings();
+            });
+        }
+        
+        const youtubeSettingsForm = document.getElementById('youtubeSettingsForm');
+        if (youtubeSettingsForm) {
+            youtubeSettingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveYouTubeSettings();
+            });
+        }
     }
     
     async loadDisplays() {
@@ -647,6 +689,294 @@ class MediaDistributor {
                 card.style.backgroundColor = '';
             });
         });
+    }
+    
+    // Configuration Management Methods
+    async loadConfigDisplays() {
+        try {
+            const response = await fetch('/api/config/displays');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderConfigDisplaysTable(data.displays);
+            } else {
+                this.showToast('Failed to load display configuration', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading display config:', error);
+            this.showToast('Error loading display configuration', 'error');
+        }
+    }
+    
+    renderConfigDisplaysTable(displays) {
+        const tbody = document.getElementById('displaysTable');
+        tbody.innerHTML = '';
+        
+        displays.forEach(display => {
+            const row = document.createElement('tr');
+            const statusBadge = display.enabled ? 
+                '<span class="badge bg-success">Enabled</span>' : 
+                '<span class="badge bg-secondary">Disabled</span>';
+                
+            row.innerHTML = `
+                <td>${display.name}</td>
+                <td>${display.ip}</td>
+                <td>${display.port}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="app.editDisplay('${display.name}')">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="app.deleteDisplay('${display.name}')">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    async addDisplay() {
+        const name = document.getElementById('newDisplayName').value.trim();
+        const ip = document.getElementById('newDisplayIP').value.trim();
+        const port = parseInt(document.getElementById('newDisplayPort').value) || 5000;
+        
+        if (!name || !ip) {
+            this.showToast('Name and IP address are required', 'error');
+            return;
+        }
+        
+        const displayData = {
+            name: name,
+            ip: ip,
+            port: port,
+            enabled: true
+        };
+        
+        try {
+            const response = await fetch('/api/config/displays', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(displayData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast(`Display "${name}" added successfully`, 'success');
+                // Clear form
+                document.getElementById('newDisplayName').value = '';
+                document.getElementById('newDisplayIP').value = '';
+                document.getElementById('newDisplayPort').value = '5000';
+                // Reload displays
+                this.loadConfigDisplays();
+                this.loadDisplays(); // Also refresh the streaming displays
+            } else {
+                this.showToast(data.message || 'Failed to add display', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding display:', error);
+            this.showToast('Error adding display', 'error');
+        }
+    }
+    
+    async editDisplay(displayName) {
+        try {
+            const response = await fetch('/api/config/displays');
+            const data = await response.json();
+            
+            if (data.success) {
+                const display = data.displays.find(d => d.name === displayName);
+                if (display) {
+                    // Fill the edit form
+                    document.getElementById('editDisplayOriginalName').value = display.name;
+                    document.getElementById('editDisplayName').value = display.name;
+                    document.getElementById('editDisplayIP').value = display.ip;
+                    document.getElementById('editDisplayPort').value = display.port;
+                    document.getElementById('editDisplayEnabled').checked = display.enabled;
+                    
+                    // Show modal
+                    const modal = new bootstrap.Modal(document.getElementById('editDisplayModal'));
+                    modal.show();
+                }
+            }
+        } catch (error) {
+            console.error('Error loading display for edit:', error);
+            this.showToast('Error loading display information', 'error');
+        }
+    }
+    
+    async saveEditDisplay() {
+        const originalName = document.getElementById('editDisplayOriginalName').value;
+        const name = document.getElementById('editDisplayName').value.trim();
+        const ip = document.getElementById('editDisplayIP').value.trim();
+        const port = parseInt(document.getElementById('editDisplayPort').value) || 5000;
+        const enabled = document.getElementById('editDisplayEnabled').checked;
+        
+        if (!name || !ip) {
+            this.showToast('Name and IP address are required', 'error');
+            return;
+        }
+        
+        const displayData = {
+            name: name,
+            ip: ip,
+            port: port,
+            enabled: enabled
+        };
+        
+        try {
+            const response = await fetch(`/api/config/displays/${originalName}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(displayData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast(`Display "${originalName}" updated successfully`, 'success');
+                
+                // Hide modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editDisplayModal'));
+                modal.hide();
+                
+                // Reload displays
+                this.loadConfigDisplays();
+                this.loadDisplays(); // Also refresh the streaming displays
+            } else {
+                this.showToast(data.message || 'Failed to update display', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating display:', error);
+            this.showToast('Error updating display', 'error');
+        }
+    }
+    
+    async deleteDisplay(displayName) {
+        if (!confirm(`Are you sure you want to delete display "${displayName}"?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/config/displays/${displayName}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast(`Display "${displayName}" deleted successfully`, 'success');
+                this.loadConfigDisplays();
+                this.loadDisplays(); // Also refresh the streaming displays
+            } else {
+                this.showToast(data.message || 'Failed to delete display', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting display:', error);
+            this.showToast('Error deleting display', 'error');
+        }
+    }
+    
+    async loadSettings() {
+        try {
+            const response = await fetch('/api/config');
+            const data = await response.json();
+            
+            if (data.success) {
+                const config = data.config;
+                
+                // Load streaming settings
+                const streaming = config.streaming || {};
+                document.getElementById('defaultBitrate').value = streaming.bitrate || 2000;
+                document.getElementById('videoCodec').value = streaming.video_codec || 'x264enc';
+                document.getElementById('audioCodec').value = streaming.audio_codec || 'lamemp3enc';
+                
+                // Load YouTube settings
+                const youtube = config.youtube || {};
+                const youtubeQuality = document.getElementById('youtubeQuality');
+                if (youtubeQuality) {
+                    youtubeQuality.value = youtube.default_quality || '720p';
+                }
+                const maxDuration = document.getElementById('maxDuration');
+                if (maxDuration) {
+                    maxDuration.value = youtube.max_duration || 7200;
+                }
+                const cacheSize = document.getElementById('cacheSize');
+                if (cacheSize) {
+                    cacheSize.value = youtube.cache_size || 100;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            this.showToast('Error loading settings', 'error');
+        }
+    }
+    
+    async saveStreamingSettings() {
+        const settings = {
+            streaming: {
+                bitrate: parseInt(document.getElementById('defaultBitrate').value) || 2000,
+                video_codec: document.getElementById('videoCodec').value,
+                audio_codec: document.getElementById('audioCodec').value
+            }
+        };
+        
+        try {
+            const response = await fetch('/api/config/settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(settings)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast('Streaming settings saved successfully', 'success');
+            } else {
+                this.showToast(data.message || 'Failed to save settings', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving streaming settings:', error);
+            this.showToast('Error saving streaming settings', 'error');
+        }
+    }
+    
+    async saveYouTubeSettings() {
+        const settings = {
+            youtube: {
+                default_quality: document.getElementById('youtubeQuality').value,
+                max_duration: parseInt(document.getElementById('maxDuration').value) || 7200,
+                cache_size: parseInt(document.getElementById('cacheSize').value) || 100
+            }
+        };
+        
+        try {
+            const response = await fetch('/api/config/settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(settings)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showToast('YouTube settings saved successfully', 'success');
+            } else {
+                this.showToast(data.message || 'Failed to save YouTube settings', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving YouTube settings:', error);
+            this.showToast('Error saving YouTube settings', 'error');
+        }
     }
 }
 

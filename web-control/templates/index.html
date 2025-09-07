@@ -49,29 +49,46 @@
     </nav>
 
     <div class="container-fluid mt-4">
-        <div class="row">
-            <!-- Media Selection Panel -->
-            <div class="col-lg-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-film me-2"></i>Media Source
-                        </h5>
-                        <ul class="nav nav-tabs card-header-tabs" id="sourceTab" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="local-tab" data-bs-toggle="tab" data-bs-target="#local" type="button" role="tab">
-                                    <i class="fas fa-folder me-1"></i>Local Media
-                                </button>
-                            </li>
-                            {% if youtube_enabled %}
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="youtube-tab" data-bs-toggle="tab" data-bs-target="#youtube" type="button" role="tab">
-                                    <i class="fab fa-youtube me-1"></i>YouTube
-                                </button>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </div>
+        <!-- Main Navigation Tabs -->
+        <ul class="nav nav-tabs mb-4" id="mainTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="streaming-tab" data-bs-toggle="tab" data-bs-target="#streaming" type="button" role="tab">
+                    <i class="fas fa-broadcast-tower me-2"></i>Streaming
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="configuration-tab" data-bs-toggle="tab" data-bs-target="#configuration" type="button" role="tab">
+                    <i class="fas fa-cog me-2"></i>Configuration
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabContent">
+            <!-- Streaming Tab -->
+            <div class="tab-pane fade show active" id="streaming" role="tabpanel">
+                <div class="row">
+                    <!-- Media Selection Panel -->
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-film me-2"></i>Media Source
+                                </h5>
+                                <ul class="nav nav-tabs card-header-tabs" id="sourceTab" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="local-tab" data-bs-toggle="tab" data-bs-target="#local" type="button" role="tab">
+                                            <i class="fas fa-folder me-1"></i>Local Media
+                                        </button>
+                                    </li>
+                                    {% if youtube_enabled %}
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="youtube-tab" data-bs-toggle="tab" data-bs-target="#youtube" type="button" role="tab">
+                                            <i class="fab fa-youtube me-1"></i>YouTube
+                                        </button>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
                     <div class="card-body">
                         <div class="tab-content" id="sourceTabContent">
                             <!-- Local Media Tab -->
@@ -215,6 +232,182 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Configuration Tab -->
+    <div class="tab-pane fade" id="configuration" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Display Management -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-tv me-2"></i>Display Management
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Add Display Form -->
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="newDisplayName" placeholder="Display Name">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="newDisplayIP" placeholder="IP Address">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <input type="number" class="form-control" id="newDisplayPort" placeholder="Port" value="5000">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-success w-100" id="addDisplayBtn">
+                                            <i class="fas fa-plus"></i> Add
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Displays Table -->
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>IP Address</th>
+                                        <th>Port</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="displaysTable">
+                                    <!-- Displays will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <!-- System Settings -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-cogs me-2"></i>Streaming Settings
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="streamingSettingsForm">
+                            <div class="mb-3">
+                                <label for="defaultBitrate" class="form-label">Default Bitrate (kbps)</label>
+                                <input type="number" class="form-control" id="defaultBitrate" value="2000">
+                            </div>
+                            <div class="mb-3">
+                                <label for="videoCodec" class="form-label">Video Codec</label>
+                                <select class="form-select" id="videoCodec">
+                                    <option value="x264enc">H.264 (x264)</option>
+                                    <option value="x265enc">H.265 (x265)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="audioCodec" class="form-label">Audio Codec</label>
+                                <select class="form-select" id="audioCodec">
+                                    <option value="lamemp3enc">MP3</option>
+                                    <option value="avenc_aac">AAC</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-save me-1"></i>Save Settings
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                {% if youtube_enabled %}
+                <!-- YouTube Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fab fa-youtube me-2"></i>YouTube Settings
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="youtubeSettingsForm">
+                            <div class="mb-3">
+                                <label for="youtubeQuality" class="form-label">Default Quality</label>
+                                <select class="form-select" id="youtubeQuality">
+                                    <option value="best">Best Available</option>
+                                    <option value="1080p">1080p</option>
+                                    <option value="720p">720p</option>
+                                    <option value="480p">480p</option>
+                                    <option value="360p">360p</option>
+                                    <option value="worst">Worst (Bandwidth Saving)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="maxDuration" class="form-label">Max Duration (seconds)</label>
+                                <input type="number" class="form-control" id="maxDuration" value="7200">
+                            </div>
+                            <div class="mb-3">
+                                <label for="cacheSize" class="form-label">Cache Size</label>
+                                <input type="number" class="form-control" id="cacheSize" value="100">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-save me-1"></i>Save YouTube Settings
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Edit Display Modal -->
+    <div class="modal fade" id="editDisplayModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Edit Display
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editDisplayForm">
+                        <input type="hidden" id="editDisplayOriginalName">
+                        <div class="mb-3">
+                            <label for="editDisplayName" class="form-label">Display Name</label>
+                            <input type="text" class="form-control" id="editDisplayName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editDisplayIP" class="form-label">IP Address</label>
+                            <input type="text" class="form-control" id="editDisplayIP" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editDisplayPort" class="form-label">Port</label>
+                            <input type="number" class="form-control" id="editDisplayPort" required>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editDisplayEnabled">
+                                <label class="form-check-label" for="editDisplayEnabled">
+                                    Enabled
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveEditDisplayBtn">
+                        <i class="fas fa-save me-1"></i>Save Changes
+                    </button>
                 </div>
             </div>
         </div>

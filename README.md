@@ -154,6 +154,17 @@ The stream manager provides a REST API for programmatic control:
 | GET | `/api/youtube/status` | YouTube integration status |
 | POST | `/api/youtube/cache/clear` | Clear video cache |
 
+### Configuration Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/config` | Get complete configuration |
+| GET | `/api/config/displays` | Get display configuration |
+| POST | `/api/config/displays` | Add a new display |
+| PUT | `/api/config/displays/<name>` | Update a display |
+| DELETE | `/api/config/displays/<name>` | Delete a display |
+| PUT | `/api/config/settings` | Update streaming/YouTube settings |
+
 ### Example API Usage
 
 **Start a local media stream:**
@@ -196,6 +207,27 @@ curl -X POST http://localhost:8081/api/youtube/search \
   -d '{"query": "nature documentary", "max_results": 5}'
 ```
 
+**Add a new display:**
+```bash
+curl -X POST http://localhost:8081/api/config/displays \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Office TV", "ip": "192.168.1.150", "port": 5000, "enabled": true}'
+```
+
+**Update display settings:**
+```bash
+curl -X PUT http://localhost:8081/api/config/displays/Office%20TV \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Office TV", "ip": "192.168.1.155", "port": 5001, "enabled": false}'
+```
+
+**Update streaming settings:**
+```bash
+curl -X PUT http://localhost:8081/api/config/settings \
+  -H "Content-Type: application/json" \
+  -d '{"streaming": {"video": {"bitrate": 3000, "codec": "x265enc"}}}'
+```
+
 ## Usage
 
 ### Streaming Local Media
@@ -222,6 +254,22 @@ curl -X POST http://localhost:8081/api/youtube/search \
    - Select a video from results
    - Video will be automatically validated
    - Select displays and start stream
+
+### Configuration Management
+
+1. Access the web interface at `http://localhost:8080`
+2. Click the "Configuration" tab
+3. **Display Management**:
+   - **Add Display**: Enter name, IP address, and port, then click "Add"
+   - **Edit Display**: Click the "Edit" button next to any display
+   - **Delete Display**: Click the "Delete" button (with confirmation)
+   - **Enable/Disable**: Toggle displays on/off in the edit dialog
+4. **Streaming Settings**:
+   - Adjust default bitrate, video codec, and audio codec
+   - Settings apply to new streams
+5. **YouTube Settings** (if enabled):
+   - Configure default quality, max duration, and cache size
+   - Changes take effect immediately
 
 ### Supported YouTube URLs
 

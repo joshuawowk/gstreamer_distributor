@@ -461,6 +461,82 @@ def get_media_files() -> List[str]:
     
     return sorted(media_files)
 
+# Configuration Management Endpoints
+@app.route('/api/config')
+def get_config():
+    """Proxy configuration request to stream manager"""
+    try:
+        response = requests.get(f'{STREAM_MANAGER_URL}/api/config', timeout=10)
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logging.error(f"Error getting config: {e}")
+        return jsonify({'success': False, 'message': 'Stream manager unavailable'}), 503
+
+@app.route('/api/config/displays')
+def get_config_displays():
+    """Proxy displays request to stream manager"""
+    try:
+        response = requests.get(f'{STREAM_MANAGER_URL}/api/config/displays', timeout=10)
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logging.error(f"Error getting displays: {e}")
+        return jsonify({'success': False, 'message': 'Stream manager unavailable'}), 503
+
+@app.route('/api/config/displays', methods=['POST'])
+def add_config_display():
+    """Proxy add display request to stream manager"""
+    try:
+        response = requests.post(
+            f'{STREAM_MANAGER_URL}/api/config/displays', 
+            json=request.json,
+            timeout=10
+        )
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logging.error(f"Error adding display: {e}")
+        return jsonify({'success': False, 'message': 'Stream manager unavailable'}), 503
+
+@app.route('/api/config/displays/<display_name>', methods=['PUT'])
+def update_config_display(display_name):
+    """Proxy update display request to stream manager"""
+    try:
+        response = requests.put(
+            f'{STREAM_MANAGER_URL}/api/config/displays/{display_name}', 
+            json=request.json,
+            timeout=10
+        )
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logging.error(f"Error updating display: {e}")
+        return jsonify({'success': False, 'message': 'Stream manager unavailable'}), 503
+
+@app.route('/api/config/displays/<display_name>', methods=['DELETE'])
+def delete_config_display(display_name):
+    """Proxy delete display request to stream manager"""
+    try:
+        response = requests.delete(
+            f'{STREAM_MANAGER_URL}/api/config/displays/{display_name}',
+            timeout=10
+        )
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logging.error(f"Error deleting display: {e}")
+        return jsonify({'success': False, 'message': 'Stream manager unavailable'}), 503
+
+@app.route('/api/config/settings', methods=['PUT'])
+def update_settings():
+    """Proxy settings update request to stream manager"""
+    try:
+        response = requests.put(
+            f'{STREAM_MANAGER_URL}/api/config/settings', 
+            json=request.json,
+            timeout=10
+        )
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logging.error(f"Error updating settings: {e}")
+        return jsonify({'success': False, 'message': 'Stream manager unavailable'}), 503
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'success': False, 'message': 'Endpoint not found'}), 404

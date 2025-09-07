@@ -330,6 +330,218 @@ class StreamManager:
                     'error': str(e)
                 })
         
+        # Configuration Management Endpoints
+        @self.app.route('/api/config')
+        def get_config():
+            """Get current configuration"""
+            try:
+                return jsonify({
+                    'success': True,
+                    'config': self.config
+                })
+            except Exception as e:
+                self.logger.error(f"Config get error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/config/displays')
+        def get_displays():
+            """Get displays configuration"""
+            try:
+                return jsonify({
+                    'success': True,
+                    'displays': self.config.get('displays', {}).get('endpoints', [])
+                })
+            except Exception as e:
+                self.logger.error(f"Displays get error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/config/displays', methods=['POST'])
+        def add_display():
+            """Add a new display"""
+            try:
+                data = request.json
+                name = data.get('name')
+                ip = data.get('ip')
+                port = data.get('port', 5000)
+                enabled = data.get('enabled', True)
+                
+                if not name or not ip:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Name and IP are required'
+                    }), 400
+                
+                # Check if display already exists
+                displays = self.config.get('displays', {}).get('endpoints', [])
+                if any(d.get('name') == name for d in displays):
+                    return jsonify({
+                        'success': False,
+                        'message': f'Display "{name}" already exists'
+                    }), 400
+                
+                # Add new display
+                new_display = {
+                    'name': name,
+                    'ip': ip,
+                    'port': int(port),
+                    'enabled': enabled
+                }
+                
+                displays.append(new_display)
+                self.config.setdefault('displays', {})['endpoints'] = displays
+                
+                # Save configuration
+                self._save_config()
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Display "{name}" added successfully',
+                    'display': new_display
+                })
+                
+            except Exception as e:
+                self.logger.error(f"Add display error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/config/displays/<display_name>', methods=['PUT'])
+        def update_display(display_name):
+            """Update an existing display"""
+            try:
+                data = request.json
+                displays = self.config.get('displays', {}).get('endpoints', [])
+                
+                # Find display to update
+                display_index = None
+                for i, display in enumerate(displays):
+                    if display.get('name') == display_name:
+                        display_index = i
+                        break
+                
+                if display_index is None:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Display "{display_name}" not found'
+                    }), 404
+                
+                # Update display properties
+                display = displays[display_index]
+                if 'name' in data:
+                    # Check if new name conflicts with existing displays
+                    if data['name'] != display_name and any(d.get('name') == data['name'] for d in displays):
+                        return jsonify({
+                            'success': False,
+                            'message': f'Display "{data["name"]}" already exists'
+                        }), 400
+                    display['name'] = data['name']
+                if 'ip' in data:
+                    display['ip'] = data['ip']
+                if 'port' in data:
+                    display['port'] = int(data['port'])
+                if 'enabled' in data:
+                    display['enabled'] = data['enabled']
+                
+                # Save configuration
+                self._save_config()
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Display "{display_name}" updated successfully',
+                    'display': display
+                })
+                
+            except Exception as e:
+                self.logger.error(f"Update display error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/config/displays/<display_name>', methods=['DELETE'])
+        def delete_display(display_name):
+            """Delete a display"""
+            try:
+                displays = self.config.get('displays', {}).get('endpoints', [])
+                
+                # Find and remove display
+                original_count = len(displays)
+                displays[:] = [d for d in displays if d.get('name') != display_name]
+                
+                if len(displays) == original_count:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Display "{display_name}" not found'
+                    }), 404
+                
+                # Save configuration
+                self._save_config()
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Display "{display_name}" deleted successfully'
+                })
+                
+            except Exception as e:
+                self.logger.error(f"Delete display error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/api/config/settings', methods=['PUT'])
+        def update_settings():
+            """Update general settings"""
+            try:
+                data = request.json
+                
+                # Update streaming settings
+                if 'streaming' in data:
+                    streaming_settings = data['streaming']
+                    self.config.setdefault('streaming', {}).update(streaming_settings)
+                
+                # Update YouTube settings
+                if 'youtube' in data:
+                    youtube_settings = data['youtube']
+                    self.config.setdefault('youtube', {}).update(youtube_settings)
+                    
+                    # Reinitialize YouTube handler if settings changed
+                    if self.youtube_handler:
+                        self.youtube_handler = YouTubeHandler(self.config)
+                
+                # Save configuration
+                self._save_config()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Settings updated successfully'
+                })
+                
+            except Exception as e:
+                self.logger.error(f"Update settings error: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': str(e)
+                }), 500
+        
+    def _save_config(self):
+        """Save current configuration to file"""
+        try:
+            config_path = '/config/config.yml'
+            with open(config_path, 'w') as f:
+                yaml.dump(self.config, f, default_flow_style=False, indent=2)
+            self.logger.info("Configuration saved successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to save configuration: {e}")
+            raise
+        
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""
         self.logger.info(f"Received signal {signum}, shutting down...")

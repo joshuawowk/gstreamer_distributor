@@ -5,7 +5,7 @@ services:
     volumes:
       # Mount your media directory here - update the path on the left
       - ./media:/media:ro
-      - ./config:/config:ro
+      - ./config:/config
     ports:
       - "5000-5010:5000-5010/udp"
       - "8081:8081"  # API port
@@ -26,7 +26,7 @@ services:
     volumes:
       # Mount your media directory here - update the path on the left
       - ./media:/media-library:ro
-      - ./config:/config:ro
+      - ./config:/config
     environment:
       - PYTHONUNBUFFERED=1
       - FLASK_ENV=production
