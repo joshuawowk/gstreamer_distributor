@@ -8,7 +8,7 @@ services:
       - ./config:/config:ro
     ports:
       - "5000-5010:5000-5010/udp"
-      - "8081:8081"  # API port
+      - "8811:8081"  # API port
     environment:
       - PYTHONUNBUFFERED=1
       - GST_DEBUG=2
@@ -22,7 +22,7 @@ services:
     build: ./web-control
     container_name: media-control
     ports:
-      - "8080:8080"
+      - "8812:8080"
     volumes:
       # Mount your media directory here - update the path on the left
       - ./media:/media-library:ro
