@@ -78,7 +78,7 @@ class StreamManager:
             },
             'displays': {
                 'endpoints': [
-                    {'name': 'Display 1', 'ip': '192.168.1.100', 'port': 5000, 'enabled': True}
+                    {'name': 'Display 1', 'ip': '192.0.2.100', 'port': 5000, 'enabled': True}
                 ]
             },
             'streaming': {
