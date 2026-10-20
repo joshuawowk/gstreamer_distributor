@@ -1,5 +1,6 @@
 services:
   gstreamer-server:
+    image: ghcr.io/joshuawowk/gstreamer-distributor-server:latest
     build: ./gstreamer-server
     container_name: media-distributor
     volumes:
@@ -19,6 +20,7 @@ services:
       - web-control
 
   web-control:
+    image: ghcr.io/joshuawowk/gstreamer-distributor-web-control:latest
     build: ./web-control
     container_name: media-control
     ports:
