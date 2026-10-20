@@ -1,4 +1,7 @@
 FROM python:3.9-slim
+LABEL org.opencontainers.image.source="https://github.com/joshuawowk/gstreamer_distributor" \
+      org.opencontainers.image.description="Web control interface for gstreamer_distributor" \
+      org.opencontainers.image.licenses="MIT"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
