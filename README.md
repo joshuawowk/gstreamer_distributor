@@ -1,18 +1,39 @@
 # GStreamer Media Distributor
 
+[![Release](https://img.shields.io/github/v/release/joshuawowk/gstreamer_distributor)](https://github.com/joshuawowk/gstreamer_distributor/releases)
+[![License: MIT](https://img.shields.io/github/license/joshuawowk/gstreamer_distributor)](LICENSE)
+
 A powerful solution for streaming media content to multiple displays simultaneously using GStreamer and Docker. Perfect for digital signage, multi-room entertainment, or any scenario requiring synchronized media distribution.
 
 ## Features
 
 - 🎬 **Multi-Display Streaming**: Stream to unlimited displays simultaneously
 - 🌐 **Web-Based Control**: Intuitive web interface for managing streams
-- � **YouTube Integration**: Stream YouTube videos directly to displays
-- �🔧 **Flexible Configuration**: YAML-based configuration system
+- 📺 **YouTube Integration**: Stream YouTube videos directly to displays
+- 🔧 **Flexible Configuration**: YAML-based configuration system
 - 📊 **Real-Time Monitoring**: Live stream status and system health monitoring
 - 🐳 **Docker Ready**: Complete containerized solution
 - 🎵 **Audio + Video**: Full support for audio and video streaming
 - 🚀 **High Performance**: Optimized GStreamer pipelines for low latency
 - 🔍 **YouTube Search**: Built-in YouTube video search functionality
+
+## Install
+
+Multi-arch images (linux/amd64, linux/arm64) are published to GHCR on each release:
+
+- `ghcr.io/joshuawowk/gstreamer-distributor-server`
+- `ghcr.io/joshuawowk/gstreamer-distributor-web-control`
+
+The two services are meant to run together, so use the provided Compose file
+(it pulls the published images; `docker compose up -d --build` builds from
+source instead):
+
+```bash
+git clone https://github.com/joshuawowk/gstreamer_distributor
+cd gstreamer_distributor
+cp config/config.example.yml config/config.yml   # edit your display endpoints
+docker compose up -d
+```
 
 ## Quick Start
 
@@ -37,11 +58,11 @@ Edit `config/config.yml` and update the display endpoints:
 displays:
   endpoints:
     - name: "Living Room TV"
-      ip: "192.168.1.100"
+      ip: "192.0.2.100"
       port: 5000
       enabled: true
     - name: "Kitchen Display"
-      ip: "192.168.1.101"
+      ip: "192.0.2.101"
       port: 5001
       enabled: true
 ```
@@ -66,9 +87,9 @@ Open your browser to `http://localhost:8080`
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Web Control   │    │  Stream Manager  │    │    Displays     │
-│    (Flask)      │◄──►│   (GStreamer)    │───►│  192.168.1.100  │
-│   Port 8080     │    │   Port 8081      │    │  192.168.1.101  │
-└─────────────────┘    └──────────────────┘    │  192.168.1.102  │
+│    (Flask)      │◄──►│   (GStreamer)    │───►│  192.0.2.100  │
+│   Port 8080     │    │   Port 8081      │    │  192.0.2.101  │
+└─────────────────┘    └──────────────────┘    │  192.0.2.102  │
                                                └─────────────────┘
 ```
 
@@ -102,7 +123,7 @@ youtube:
 displays:
   endpoints:
     - name: "Display 1"
-      ip: "192.168.1.100"
+      ip: "192.0.2.100"
       port: 5000
       enabled: true
 
@@ -175,7 +196,7 @@ curl -X POST http://localhost:8081/api/stream/start \
     "stream_id": "local-stream-1",
     "media_source": "movies/sample.mp4",
     "displays": [
-      {"name": "Display 1", "ip": "192.168.1.100", "port": 5000}
+      {"name": "Display 1", "ip": "192.0.2.100", "port": 5000}
     ]
   }'
 ```
@@ -188,7 +209,7 @@ curl -X POST http://localhost:8081/api/stream/start \
     "stream_id": "youtube-stream-1", 
     "media_source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     "displays": [
-      {"name": "Display 1", "ip": "192.168.1.100", "port": 5000}
+      {"name": "Display 1", "ip": "192.0.2.100", "port": 5000}
     ]
   }'
 ```
@@ -211,14 +232,14 @@ curl -X POST http://localhost:8081/api/youtube/search \
 ```bash
 curl -X POST http://localhost:8081/api/config/displays \
   -H "Content-Type: application/json" \
-  -d '{"name": "Office TV", "ip": "192.168.1.150", "port": 5000, "enabled": true}'
+  -d '{"name": "Office TV", "ip": "192.0.2.150", "port": 5000, "enabled": true}'
 ```
 
 **Update display settings:**
 ```bash
 curl -X PUT http://localhost:8081/api/config/displays/Office%20TV \
   -H "Content-Type: application/json" \
-  -d '{"name": "Office TV", "ip": "192.168.1.155", "port": 5001, "enabled": false}'
+  -d '{"name": "Office TV", "ip": "192.0.2.155", "port": 5001, "enabled": false}'
 ```
 
 **Update streaming settings:**
@@ -271,7 +292,16 @@ curl -X PUT http://localhost:8081/api/config/settings \
    - Configure default quality, max duration, and cache size
    - Changes take effect immediately
 
-### Supported YouTube URLs
+#### Licensing note
+
+The MIT license covers this project's own code. The `gstreamer-server` image
+installs Ubuntu's `gstreamer1.0-plugins-ugly`, `gstreamer1.0-plugins-bad` and
+`gstreamer1.0-libav` packages, which provide codecs (e.g. H.264/x264, MP3,
+FFmpeg) that are covered by third-party licenses (LGPL/GPL) and may be subject
+to patent licensing in some jurisdictions. You are responsible for compliance
+when using or redistributing those components.
+
+## Supported YouTube URLs
 
 - Standard: `https://www.youtube.com/watch?v=VIDEO_ID`
 - Short: `https://youtu.be/VIDEO_ID`
@@ -345,13 +375,13 @@ gst-launch-1.0 udpsrc port=5100 ! \
 ### Using VLC Media Player
 
 ```bash
-vlc rtp://192.168.1.100:5000
+vlc rtp://192.0.2.100:5000
 ```
 
 ### Using FFmpeg
 
 ```bash
-ffplay rtp://192.168.1.100:5000
+ffplay rtp://192.0.2.100:5000
 ```
 
 ## Monitoring and Troubleshooting
